@@ -37,14 +37,14 @@
 
   <script>
     // 1. PASTE YOUR GOOGLE SHEET CSV LINK HERE:
-    const SHEET_CSV_URL = "YOUR_GOOGLE_SHEET_CSV_URL_HERE";
+    const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1cwpC5spQOIKyQByLtBASWqTypJebbSSz7gyE8X0LYZw/edit?usp=sharing";
 
     let recipes = [];
     let allIngredients = new Set();
     let selected = new Set(JSON.parse(localStorage.getItem('pantry_items') || '[]'));
 
     async function fetchData() {
-      if (SHEET_CSV_URL === "YOUR_GOOGLE_SHEET_CSV_URL_HERE") {
+      if (SHEET_CSV_URL === "https://docs.google.com/spreadsheets/d/1cwpC5spQOIKyQByLtBASWqTypJebbSSz7gyE8X0LYZw/edit?usp=sharing") {
         document.getElementById("recipeResults").innerHTML = 
           "<p style='color:red;'>Please add your Google Sheet CSV URL in the HTML code!</p>";
         return;
