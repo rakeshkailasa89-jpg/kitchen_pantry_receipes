@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kitchen Pantry Matcher</title>
+  <style>
+    :root { --primary: #e65100; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 1rem; max-width: 600px; margin: auto; }
+    h1 { font-size: 1.3rem; color: var(--primary); margin-bottom: 0.5rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
+    .chip { padding: 0.35rem 0.65rem; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; font-size: 0.85rem; user-select: none; }
+    .chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .actions { margin: 1rem 0; display: flex; gap: 0.5rem; }
+    button { padding: 0.45rem 0.85rem; border-radius: 8px; border: none; background: #e2e8f0; font-weight: 600; cursor: pointer; font-size: 0.85rem; }
+    .recipe-card { background: var(--card); border-radius: 10px; padding: 0.85rem; margin-bottom: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); cursor: pointer; }
+    .recipe-title { font-weight: 700; font-size: 1rem; display: flex; justify-content: space-between; }
+    .badge { font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 6px; font-weight: 600; }
+    .ready { background: #dcfce7; color: #15803d; }
+    .missing { background: #fef3c7; color: #b45309; }
+    .tag { font-size: 0.8rem; color: #64748b; margin-top: 0.35rem; }
+    .steps { font-size: 0.82rem; color: #334155; margin-top: 0.5rem; border-top: 1px dashed #e2e8f0; padding-top: 0.5rem; display: none; }
+    .steps.open { display: block; }
+  </style>
+</head>
+<body>
+  <h1>🍳 Kitchen Pantry Matcher</h1>
+  <div class="actions">
+    <button onclick="clearAll()">Clear Checked</button>
+    <button onclick="fetchData()">🔄 Reload Recipes</button>
+  </div>
+
+  <div id="ingredientChips" class="chips"></div>
+
+  <h3 style="margin-top: 1.5rem;">Suggested Dishes (Tap for Steps)</h3>
+  <div id="recipeResults">Loading recipes from Google Sheet...</div>
+
+  <script>
+    // 1. PASTE YOUR GOOGLE SHEET CSV LINK HERE:
+    const SHEET_CSV_URL = "YOUR_GOOGLE_SHEET_CSV_URL_HERE";
+
+    let recipes = [];
+    let allIngredients = new Set();
+    let selected = new Set(JSON.parse(localStorage.getItem('pantry_items') || '[]'));
+
+    async function fetchData() {
+      if (SHEET_CSV_URL === "YOUR_GOOGLE_SHEET_CSV_URL_HERE") {
+        document.getElementById("recipeResults").innerHTML = 
+          "<p style='color:red;'>Please add your Google Sheet CSV URL in the HTML code!</p>";
+        return;
+      }
+      try {
+        const res = await fetch(SHEET_CSV_URL);
+        const text = await res.text();
+        parseCSV(text);
+      } catch (err) {
+        document.getElementById("recipeResults").innerText = "Failed to load sheet data: " + err;
+      }
+    }
+
+    function parseCSV(csvText) {
+      const rows = csvText.split('\n').map(r => r.trim()).filter(r => r.length > 0);
+      recipes = [];
+      allIngredients.clear();
+
+      // Skip header row
+      for (let i = 1; i < rows.length; i++) {
+        // Simple regex parser for CSV row items
+        const cols = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"\vert{}"$/g, '').trim());
+        if (cols.length >= 3) {
+          const name = cols[0];
+          const ingList = cols[2].split(',').map(item => item.trim()).filter(Boolean);
+          const steps = cols[3] || "No instructions provided.";
+          
+          ingList.forEach(ing => allIngredients.add(ing));
+          recipes.push({ name, core: ingList, steps });
+        }
+      }
+      renderChips();
+      renderMatches();
+    }
+
+    function renderChips() {
+      const box = document.getElementById("ingredientChips");
+      box.innerHTML = "";
+      [...allIngredients].sort().forEach(item => {
+        const chip = document.createElement("div");
+        chip.className = `chip ${selected.has(item) ? "active" : ""}`;
+        chip.innerText = item;
+        chip.onclick = () => {
+          selected.has(item) ? selected.delete(item) : selected.add(item);
+          localStorage.setItem('pantry_items', JSON.stringify([...selected]));
+          chip.classList.toggle("active");
+          renderMatches();
+        };
+        box.appendChild(chip);
+      });
+    }
+
+    function clearAll() {
+      selected.clear();
+      localStorage.setItem('pantry_items', '[]');
+      renderChips();
+      renderMatches();
+    }
+
+    function renderMatches() {
+      const out = document.getElementById("recipeResults");
+      out.innerHTML = "";
+
+      const ranked = recipes.map(r => {
+        const missing = r.core.filter(i => !selected.has(i));
+        return { ...r, missing };
+      }).sort((a, b) => a.missing.length - b.missing.length);
+
+      ranked.forEach(r => {
+        if (r.missing.length > 3) return; // Hide recipes if missing more than 3 items
+        const isReady = r.missing.length === 0;
+        const card = document.createElement("div");
+        card.className = "recipe-card";
+        card.innerHTML = `
+          <div class="recipe-title">
+            <span>${r.name}</span>
+            <span class="badge ${isReady ? 'ready' : 'missing'}">${isReady ? 'Ready' : 'Need ' + r.missing.length}</span>
+          </div>
+          <div class="tag">${isReady ? 'All key ingredients available' : 'Missing: ' + r.missing.join(', ')}</div>
+          <div class="steps">${r.steps}</div>
+        `;
+        card.onclick = () => {
+          const stepsEl = card.querySelector('.steps');
+          stepsEl.classList.toggle('open');
+        };
+        out.appendChild(card);
+      });
+    }
+
+    fetchData();
+  </script>
+</body>
+</html>
