@@ -56,6 +56,8 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.3rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
     }
 
     h1 {
@@ -75,7 +77,13 @@
       margin: 0.2rem 0 0 0;
     }
 
-    /* Top Action Buttons */
+    .top-buttons {
+      display: flex;
+      gap: 0.45rem;
+      align-items: center;
+    }
+
+    /* Action Buttons */
     .actions-strip {
       display: flex;
       gap: 0.5rem;
@@ -95,6 +103,7 @@
       align-items: center;
       gap: 0.35rem;
       box-shadow: var(--shadow-sm);
+      text-decoration: none;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
@@ -106,6 +115,17 @@
 
     .btn-action:active {
       transform: translateY(0);
+    }
+
+    .btn-sheet {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+      color: #15803d;
+    }
+
+    .btn-sheet:hover {
+      background: #dcfce7;
+      border-color: #86efac;
     }
 
     /* Glass Panels */
@@ -464,9 +484,19 @@
   <header>
     <div class="brand-row">
       <h1>🥘 Vindu Matcher</h1>
-      <button class="btn-action" onclick="fetchData()">🔄 Sync Sheet</button>
+      <div class="top-buttons">
+        <a 
+          href="https://docs.google.com/spreadsheets/d/1cwpC5spQOIKyQByLtBASWqTypJebbSSz7gyE8X0LYZw/edit" 
+          target="_blank" 
+          class="btn-action btn-sheet"
+          title="Open Google Sheet to add/edit recipes"
+        >
+          ✏️ Edit Sheet
+        </a>
+        <button class="btn-action" onclick="fetchData()">🔄 Sync</button>
+      </div>
     </div>
-    <p class="header-desc">Tap what's in your fridge & pantry to surface meal options.</p>
+    <p class="header-desc">Tap what's in your fridge & pantry to surface instant Telugu meals.</p>
     
     <div class="actions-strip">
       <button class="btn-action" onclick="clearAll()">✨ Reset Filters</button>
@@ -504,7 +534,7 @@
           <option value="all">Any Score</option>
           <option value="high">High Health (8 - 10)</option>
           <option value="mid">Moderate (6 - 7.9)</option>
-          <option value="low">Comfort / Rich (< 6)</option>
+          <option value="low">Comfort / Rich (&lt; 6)</option>
         </select>
       </div>
 
@@ -658,14 +688,12 @@
       const dietVal = document.getElementById("dietFilter") ? document.getElementById("dietFilter").value : "all";
       const pairingQuery = document.getElementById("pairingSearch") ? document.getElementById("pairingSearch").value.trim().toLowerCase() : "";
 
-      // Calculate matches
       const processed = recipes.map(r => {
         const matched = r.core.filter(i => selected.has(i));
         const missing = r.core.filter(i => !selected.has(i));
         return { ...r, matched, missing };
       });
 
-      // Filter
       const filtered = processed.filter(r => {
         if (dishQuery && !r.name.toLowerCase().includes(dishQuery)) return false;
 
@@ -686,7 +714,6 @@
         return true;
       });
 
-      // Sort
       if (selected.size > 0) {
         filtered.sort((a, b) => {
           if (b.matched.length !== a.matched.length) return b.matched.length - a.matched.length;
