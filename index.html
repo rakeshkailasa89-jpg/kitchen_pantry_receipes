@@ -37,27 +37,29 @@
 
   <script>
     // 1. PASTE YOUR GOOGLE SHEET CSV LINK HERE:
-    const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1cwpC5spQOIKyQByLtBASWqTypJebbSSz7gyE8X0LYZw/edit?usp=sharing";
+    // Direct CSV export link for your sheet:
+    const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR4IXeiYmaiaZ8cBF435gRbIy2Y7np9MEWfyza28HLDmo0lKPgMTiDppcISgsKQjAEarVygSjoclEon/pub?output=csv";
 
     let recipes = [];
     let allIngredients = new Set();
     let selected = new Set(JSON.parse(localStorage.getItem('pantry_items') || '[]'));
 
     async function fetchData() {
-      if (SHEET_CSV_URL === "https://docs.google.com/spreadsheets/d/1cwpC5spQOIKyQByLtBASWqTypJebbSSz7gyE8X0LYZw/edit?usp=sharing") {
+      if (!SHEET_CSV_URL || SHEET_CSV_URL.includes("YOUR_GOOGLE_SHEET")) {
         document.getElementById("recipeResults").innerHTML = 
           "<p style='color:red;'>Please add your Google Sheet CSV URL in the HTML code!</p>";
         return;
       }
       try {
         const res = await fetch(SHEET_CSV_URL);
+        if (!res.ok) throw new Error("HTTP error " + res.status);
         const text = await res.text();
         parseCSV(text);
       } catch (err) {
         document.getElementById("recipeResults").innerText = "Failed to load sheet data: " + err;
       }
     }
-
+    
     function parseCSV(csvText) {
       const rows = csvText.split('\n').map(r => r.trim()).filter(r => r.length > 0);
       recipes = [];
