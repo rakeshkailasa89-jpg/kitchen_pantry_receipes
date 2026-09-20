@@ -295,88 +295,119 @@
       renderChips();
       renderMatches();
     }
-
-    function renderMatches() {
+function renderMatches() {
       const out = document.getElementById("recipeResults");
       out.innerHTML = "";
 
-      // Calculate missing ingredients for each recipe
+      // 1. Calculate matching and missing ingredients for each recipe
       const ranked = recipes.map(r => {
+        // How many of your selected items does this recipe actually use?
+        const matched = r.core.filter(i => selected.has(i));
+        // How many required items are you still missing?
         const missing = r.core.filter(i => !selected.has(i));
-        return { ...r, missing };
+        return { ...r, matched, missing };
       });
 
-      // Sorting Logic:
-      // 1. If items are selected: Fewer missing items come first (Ready dishes at top)
-      // 2. Secondary: Category alphabetically
-      // 3. Tertiary: Recipe name alphabetically
-      ranked.sort((a, b) => {
-        if (selected.size > 0 && a.missing.length !== b.missing.length) {
-          return a.missing.length - b.missing.length;
-        }
-        if (a.category !== b.category) {
-          return a.category.localeCompare(b.category);
-        }
-        return a.name.localeCompare(b.name);
-      });
+      if (selected.size > 0) {
+        // FILTER: Only show recipes that use AT LEAST ONE of your selected ingredients
+        const filtered = ranked.filter(r => r.matched.length > 0);
 
-      let currentCategory = "";
-      let visibleCount = 0;
+        // SORTING:
+        // 1. Most matched items first (e.g. uses 2 of your items before 1)
+        // 2. Fewest missing items second (closer to completion)
+        // 3. Category alphabetically
+        // 4. Name alphabetically
+        filtered.sort((a, b) => {
+          if (b.matched.length !== a.matched.length) {
+            return b.matched.length - a.matched.length;
+          }
+          if (a.missing.length !== b.missing.length) {
+            return a.missing.length - b.missing.length;
+          }
+          if (a.category !== b.category) {
+            return a.category.localeCompare(b.category);
+          }
+          return a.name.localeCompare(b.name);
+        });
 
-      ranked.forEach(r => {
-        // If items are selected, skip recipes that are missing more than 3 ingredients
-        if (selected.size > 0 && r.missing.length > 3) return;
+        // Render matched results
+        filtered.forEach(r => {
+          const isReady = r.missing.length === 0;
+          const card = document.createElement("div");
+          card.className = "recipe-card";
 
-        visibleCount++;
+          const badgeHtml = isReady 
+            ? `<span class="badge ready">Ready</span>` 
+            : `<span class="badge missing">Need ${r.missing.length}</span>`;
 
-        // Add category header when viewing full list or grouped sections
-        if (selected.size === 0 && r.category !== currentCategory) {
-          currentCategory = r.category;
-          const catHeader = document.createElement("div");
-          catHeader.className = "category-heading";
-          catHeader.innerText = currentCategory;
-          out.appendChild(catHeader);
-        }
+          const tagHtml = isReady 
+            ? `<span style="color: #15803d; font-weight: 500;">✓ All ingredients on hand</span>`
+            : `Uses: <strong>${r.matched.join(", ")}</strong> | Missing: ${r.missing.join(", ")}`;
 
-        const isReady = r.missing.length === 0;
-        const card = document.createElement("div");
-        card.className = "recipe-card";
+          card.innerHTML = `
+            <div class="recipe-title">
+              <span>${r.name} <span class="category-tag">(${r.category})</span></span>
+              ${badgeHtml}
+            </div>
+            <div class="ingredient-summary">${tagHtml}</div>
+            <div class="hint">Tap to show/hide recipe steps</div>
+            <div class="steps">${r.steps}</div>
+          `;
 
-        let badgeHtml = "";
-        let tagHtml = "";
+          card.onclick = () => {
+            const stepsEl = card.querySelector(".steps");
+            stepsEl.classList.toggle("open");
+          };
 
-        if (selected.size === 0) {
-          badgeHtml = `<span class="badge count">${r.core.length} ingredients</span>`;
-          tagHtml = `Requires: ${r.core.join(", ")}`;
-        } else if (isReady) {
-          badgeHtml = `<span class="badge ready">Ready</span>`;
-          tagHtml = `<span style="color: #15803d; font-weight: 500;">✓ All key ingredients on hand</span>`;
-        } else {
-          badgeHtml = `<span class="badge missing">Need ${r.missing.length}</span>`;
-          tagHtml = `Missing: ${r.missing.join(", ")}`;
-        }
+          out.appendChild(card);
+        });
 
-        card.innerHTML = `
-          <div class="recipe-title">
-            <span>${r.name} <span class="category-tag">(${r.category})</span></span>
-            ${badgeHtml}
-          </div>
-          <div class="ingredient-summary">${tagHtml}</div>
-          <div class="hint">Tap to show/hide recipe steps</div>
-          <div class="steps">${r.steps}</div>
-        `;
+        document.getElementById("recipeCount").innerText = `${filtered.length} matching dishes`;
 
-        card.onclick = () => {
-          const stepsEl = card.querySelector(".steps");
-          stepsEl.classList.toggle("open");
-        };
+      } else {
+        // WHEN NOTHING IS SELECTED:
+        // Group and sort everything purely by Category, then Name
+        ranked.sort((a, b) => {
+          if (a.category !== b.category) {
+            return a.category.localeCompare(b.category);
+          }
+          return a.name.localeCompare(b.name);
+        });
 
-        out.appendChild(card);
-      });
+        let currentCategory = "";
 
-      document.getElementById("recipeCount").innerText = `${visibleCount} of ${recipes.length} dishes`;
+        ranked.forEach(r => {
+          if (r.category !== currentCategory) {
+            currentCategory = r.category;
+            const catHeader = document.createElement("div");
+            catHeader.className = "category-heading";
+            catHeader.innerText = currentCategory;
+            out.appendChild(catHeader);
+          }
+
+          const card = document.createElement("div");
+          card.className = "recipe-card";
+          card.innerHTML = `
+            <div class="recipe-title">
+              <span>${r.name} <span class="category-tag">(${r.category})</span></span>
+              <span class="badge count">${r.core.length} ingredients</span>
+            </div>
+            <div class="ingredient-summary">Requires: ${r.core.join(", ")}</div>
+            <div class="hint">Tap to show/hide recipe steps</div>
+            <div class="steps">${r.steps}</div>
+          `;
+
+          card.onclick = () => {
+            const stepsEl = card.querySelector(".steps");
+            stepsEl.classList.toggle("open");
+          };
+
+          out.appendChild(card);
+        });
+
+        document.getElementById("recipeCount").innerText = `${recipes.length} of ${recipes.length} dishes`;
+      }
     }
-
     // Initialize on page load
     fetchData();
   </script>
