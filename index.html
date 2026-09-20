@@ -249,12 +249,18 @@
 
       for (let i = 1; i < rows.length; i++) {
         // Parse CSV fields supporting quoted strings
-        const cols = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"\vert{}"$/g, '').trim());
+        const cols = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
         if (cols.length >= 3) {
           const name = cols[0];
           const category = cols[1] || "General";
-          const ingList = cols[2].split(',').map(item => item.trim()).filter(Boolean);
-          const steps = cols[3] || "No instructions provided.";
+          
+          // CLEAN INGREDIENTS: strip all lingering double quotes, single quotes, and extra whitespace
+          const ingList = cols[2]
+            .split(',')
+            .map(item => item.replace(/["']/g, '').trim())
+            .filter(Boolean);
+
+          const steps = (cols[3] || "No instructions provided.").replace(/^"|"$/g, '').trim();
           
           ingList.forEach(ing => allIngredients.add(ing));
           recipes.push({ name, category, core: ingList, steps });
