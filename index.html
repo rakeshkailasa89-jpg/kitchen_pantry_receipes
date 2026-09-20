@@ -198,6 +198,63 @@
       color: #94a3b8;
       margin-top: 0.25rem;
     }
+    /* Health & Diet Badges */
+    .diet-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.45rem;
+    }
+
+    .health-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+
+    /* Dynamic Colors: 8-10 Green, 6-7 Amber, <6 Slate */
+    .score-high { background: #dcfce7; color: #166534; }
+    .score-mid  { background: #fef3c7; color: #92400e; }
+    .score-low  { background: #f1f5f9; color: #475569; }
+
+    .role-tag {
+      font-size: 0.72rem;
+      font-weight: 500;
+      background: #eff6ff;
+      color: #1e40af;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #dbeafe;
+    }
+
+    /* Balanced Diet Pairing Box */
+    .pairing-box {
+      margin-top: 0.6rem;
+      background: #f8fafc;
+      border-left: 3px solid #10b981;
+      padding: 0.5rem 0.65rem;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.78rem;
+      color: #334155;
+      line-height: 1.35;
+    }
+
+    .pairing-title {
+      font-weight: 700;
+      color: #065f46;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 0.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
   </style>
 </head>
 <body>
@@ -242,19 +299,18 @@
       }
     }
 
-    function parseCSV(csvText) {
+function parseCSV(csvText) {
       const rows = csvText.split('\n').map(r => r.trim()).filter(r => r.length > 0);
       recipes = [];
       allIngredients.clear();
 
       for (let i = 1; i < rows.length; i++) {
-        // Parse CSV fields supporting quoted strings
         const cols = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
         if (cols.length >= 3) {
           const name = cols[0];
           const category = cols[1] || "General";
           
-          // CLEAN INGREDIENTS: strip all lingering double quotes, single quotes, and extra whitespace
+          // Clean quotes and spaces from ingredients
           const ingList = cols[2]
             .split(',')
             .map(item => item.replace(/["']/g, '').trim())
@@ -262,8 +318,13 @@
 
           const steps = (cols[3] || "No instructions provided.").replace(/^"|"$/g, '').trim();
           
+          // Nutrition & Health columns (Columns E, F, G)
+          const healthScore = cols[4] ? cols[4].replace(/["']/g, '').trim() : "";
+          const dietRole = cols[5] ? cols[5].replace(/["']/g, '').trim() : "";
+          const pairings = cols[6] ? cols[6].replace(/["']/g, '').trim() : "";
+
           ingList.forEach(ing => allIngredients.add(ing));
-          recipes.push({ name, category, core: ingList, steps });
+          recipes.push({ name, category, core: ingList, steps, healthScore, dietRole, pairings });
         }
       }
 
@@ -307,22 +368,75 @@ function renderMatches() {
 
       // 1. Calculate matching and missing ingredients for each recipe
       const ranked = recipes.map(r => {
-        // How many of your selected items does this recipe actually use?
         const matched = r.core.filter(i => selected.has(i));
-        // How many required items are you still missing?
         const missing = r.core.filter(i => !selected.has(i));
         return { ...r, matched, missing };
       });
 
+      // Helper function to build the card HTML
+      function createCard(r, badgeHtml, tagHtml) {
+        const card = document.createElement("div");
+        card.className = "recipe-card";
+
+        // Dynamic Health Score color class
+        let healthClass = "score-low";
+        const numericScore = parseFloat(r.healthScore);
+        if (numericScore >= 8) healthClass = "score-high";
+        else if (numericScore >= 6) healthClass = "score-mid";
+
+        // Build Nutrition & Diet Badges (only if present)
+        let dietHtml = "";
+        if (r.healthScore || r.dietRole) {
+          dietHtml = `<div class="diet-row">`;
+          if (r.healthScore) {
+            dietHtml += `<span class="health-badge ${healthClass}">🌿 Health ${r.healthScore}/10</span>`;
+          }
+          if (r.dietRole) {
+            dietHtml += `<span class="role-tag">${r.dietRole}</span>`;
+          }
+          dietHtml += `</div>`;
+        }
+
+        // Build Balanced Diet Fit & Pairings Box (only if present)
+        let pairingHtml = "";
+        if (r.pairings) {
+          pairingHtml = `
+            <div class="pairing-box">
+              <div class="pairing-title">🥗 Balanced Diet & Pairings</div>
+              ${r.pairings}
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="recipe-title">
+            <span>${r.name} <span class="category-tag">(${r.category})</span></span>
+            ${badgeHtml}
+          </div>
+          ${dietHtml}
+          <div class="ingredient-summary">${tagHtml}</div>
+          <div class="hint">Tap to show/hide cooking steps & pairings</div>
+          <div class="steps">
+            <strong>Preparation & Steps:</strong><br>
+            ${r.steps}
+            ${pairingHtml}
+          </div>
+        `;
+
+        card.onclick = () => {
+          const stepsEl = card.querySelector(".steps");
+          stepsEl.classList.toggle("open");
+        };
+
+        return card;
+      }
+
+      // CASE A: INGREDIENTS ARE SELECTED
       if (selected.size > 0) {
-        // FILTER: Only show recipes that use AT LEAST ONE of your selected ingredients
+        // Filter: only show dishes that use AT LEAST ONE selected ingredient
         const filtered = ranked.filter(r => r.matched.length > 0);
 
-        // SORTING:
-        // 1. Most matched items first (e.g. uses 2 of your items before 1)
-        // 2. Fewest missing items second (closer to completion)
-        // 3. Category alphabetically
-        // 4. Name alphabetically
+        // Sort: Most matched items -> Fewest missing items -> Category -> Name
         filtered.sort((a, b) => {
           if (b.matched.length !== a.matched.length) {
             return b.matched.length - a.matched.length;
@@ -336,43 +450,24 @@ function renderMatches() {
           return a.name.localeCompare(b.name);
         });
 
-        // Render matched results
         filtered.forEach(r => {
           const isReady = r.missing.length === 0;
-          const card = document.createElement("div");
-          card.className = "recipe-card";
-
-          const badgeHtml = isReady 
-            ? `<span class="badge ready">Ready</span>` 
+          const badgeHtml = isReady
+            ? `<span class="badge ready">Ready</span>`
             : `<span class="badge missing">Need ${r.missing.length}</span>`;
 
-          const tagHtml = isReady 
-            ? `<span style="color: #15803d; font-weight: 500;">✓ All ingredients on hand</span>`
+          const tagHtml = isReady
+            ? `<span style="color: #15803d; font-weight: 500;">✓ All key ingredients on hand</span>`
             : `Uses: <strong>${r.matched.join(", ")}</strong> | Missing: ${r.missing.join(", ")}`;
 
-          card.innerHTML = `
-            <div class="recipe-title">
-              <span>${r.name} <span class="category-tag">(${r.category})</span></span>
-              ${badgeHtml}
-            </div>
-            <div class="ingredient-summary">${tagHtml}</div>
-            <div class="hint">Tap to show/hide recipe steps</div>
-            <div class="steps">${r.steps}</div>
-          `;
-
-          card.onclick = () => {
-            const stepsEl = card.querySelector(".steps");
-            stepsEl.classList.toggle("open");
-          };
-
-          out.appendChild(card);
+          out.appendChild(createCard(r, badgeHtml, tagHtml));
         });
 
         document.getElementById("recipeCount").innerText = `${filtered.length} matching dishes`;
 
       } else {
-        // WHEN NOTHING IS SELECTED:
-        // Group and sort everything purely by Category, then Name
+        // CASE B: NO INGREDIENTS SELECTED (FULL LIST VIEW)
+        // Group by Category alphabetically, then Name alphabetically
         ranked.sort((a, b) => {
           if (a.category !== b.category) {
             return a.category.localeCompare(b.category);
@@ -391,24 +486,10 @@ function renderMatches() {
             out.appendChild(catHeader);
           }
 
-          const card = document.createElement("div");
-          card.className = "recipe-card";
-          card.innerHTML = `
-            <div class="recipe-title">
-              <span>${r.name} <span class="category-tag">(${r.category})</span></span>
-              <span class="badge count">${r.core.length} ingredients</span>
-            </div>
-            <div class="ingredient-summary">Requires: ${r.core.join(", ")}</div>
-            <div class="hint">Tap to show/hide recipe steps</div>
-            <div class="steps">${r.steps}</div>
-          `;
+          const badgeHtml = `<span class="badge count">${r.core.length} items</span>`;
+          const tagHtml = `Requires: ${r.core.join(", ")}`;
 
-          card.onclick = () => {
-            const stepsEl = card.querySelector(".steps");
-            stepsEl.classList.toggle("open");
-          };
-
-          out.appendChild(card);
+          out.appendChild(createCard(r, badgeHtml, tagHtml));
         });
 
         document.getElementById("recipeCount").innerText = `${recipes.length} of ${recipes.length} dishes`;
