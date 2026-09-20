@@ -106,17 +106,21 @@
       renderMatches();
     }
 
-    function renderMatches() {
+function renderMatches() {
       const out = document.getElementById("recipeResults");
       out.innerHTML = "";
 
+      // Sort recipes: recipes with the fewest missing items come first
       const ranked = recipes.map(r => {
         const missing = r.core.filter(i => !selected.has(i));
         return { ...r, missing };
       }).sort((a, b) => a.missing.length - b.missing.length);
 
       ranked.forEach(r => {
-        if (r.missing.length > 3) return; // Hide recipes if missing more than 3 items
+        // If the user has selected at least one item, hide recipes missing more than 3 items.
+        // If nothing is selected (pantry empty/cleared), show all recipes!
+        if (selected.size > 0 && r.missing.length > 3) return;
+
         const isReady = r.missing.length === 0;
         const card = document.createElement("div");
         card.className = "recipe-card";
